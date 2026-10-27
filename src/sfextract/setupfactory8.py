@@ -105,7 +105,7 @@ def get_version(pe: pefile):
             or b"<description>Setup Factory Run-time</description>" in manifest
         ):
             major_version, minor_version = GetVersionFromManifest(manifest)
-            if major_version == 9:
+            if major_version in (9, 10):
                 return (major_version, minor_version)
             return (-1, -1)
 
@@ -115,7 +115,7 @@ def get_version(pe: pefile):
 
     if check_bogus_manifest:
         major_version, minor_version, product_names = GetVersionInfoData(pe)
-        if major_version == 9 and any(product_name == b"Setup Factory Runtime" for product_name in product_names):
+        if major_version in (9, 10) and any(product_name == b"Setup Factory Runtime" for product_name in product_names):
             return (major_version, minor_version)
 
     return (-1, -1)
@@ -224,7 +224,9 @@ class SetupFactory8Extractor(SetupFactoryExtractor):
             modTime = struct.unpack("q", script_data.read(8))[0]
             script_data.seek(25, os.SEEK_CUR)
             strDestDir = ReadString(script_data)  # Destination directory
-            if self.version[0] == 9 and self.version[1] >= 3:  # From version 9.3 script format slightly changed
+            if self.version[0] >= 10:  # Setup Factory 10 added one more byte here
+                script_data.seek(12, os.SEEK_CUR)
+            elif self.version[0] == 9 and self.version[1] >= 3:  # From version 9.3 script format slightly changed
                 script_data.seek(11, os.SEEK_CUR)
             else:
                 script_data.seek(10, os.SEEK_CUR)
@@ -257,7 +259,10 @@ class SetupFactory8Extractor(SetupFactoryExtractor):
             SkipString(script_data)  # File notes
             nCompSize = struct.unpack("q", script_data.read(8))[0]
             nCrc = struct.unpack("I", script_data.read(4))[0]
-            script_data.seek(8, os.SEEK_CUR)
+            if self.version[0] >= 10:  # Setup Factory 10 shortened the entry trailer
+                script_data.seek(3, os.SEEK_CUR)
+            else:
+                script_data.seek(8, os.SEEK_CUR)
 
             file_compression = COMPRESSION.NONE if nIsCompressed == 0 else script.compression
 

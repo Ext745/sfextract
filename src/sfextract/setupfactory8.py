@@ -144,6 +144,26 @@ def ReadString(script_data: BytesIO):
     # return script_data.read(min(string_size, 1024), os.SEEK_CUR).split(b"\x00", 1)[0]
 
 
+def GetDependencySize(decompressed_data):
+    # Seen in Setup Factory 8.1: one CSetupDependency holding one CDependencyFile
+    # (count, class header, 4 bytes, source path, two equal 64-bit sizes)
+    dependency_index = decompressed_data.find(b"\xff\xff\x01\x00\x10\x00CSetupDependency")
+    if dependency_index < 2:
+        return 0
+    file_index = decompressed_data.find(b"\xff\xff\x01\x00\x0f\x00CDependencyFile", dependency_index)
+    if file_index < 2:
+        return 0
+    script_data = BytesIO(decompressed_data)
+    script_data.seek(file_index - 2, os.SEEK_SET)
+    num_files = struct.unpack("H", script_data.read(2))[0]
+    if struct.unpack("H", decompressed_data[dependency_index - 2 : dependency_index])[0] != 1 or num_files != 1:
+        raise NotImplementedError("Only one dependency module with one file is supported")
+    script_data.seek(6 + len(b"CDependencyFile") + 4, os.SEEK_CUR)
+    SkipString(script_data)  # Source path
+    script_data.seek(8, os.SEEK_CUR)
+    return struct.unpack("q", script_data.read(8))[0]
+
+
 def DetectCompression(overlay: BytesIO):
     buf = struct.unpack("BB", overlay.read(2))
     if buf[0] == 0x00 and buf[1] == 0x06:
@@ -207,6 +227,9 @@ class SetupFactory8Extractor(SetupFactoryExtractor):
             return
 
         script_data.seek(5, os.SEEK_CUR)
+
+        # Files of a dependency module (e.g. the VB6 runtime) are stored ahead of the archive files
+        self.overlay.seek(GetDependencySize(decompressed_data), os.SEEK_CUR)
 
         for _ in range(num_entries):
             SkipString(script_data)  # Full source path

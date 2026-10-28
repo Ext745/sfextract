@@ -249,7 +249,7 @@ class SetupFactory8Extractor(SetupFactoryExtractor):
             strDestDir = ReadString(script_data)  # Destination directory
             if self.version[0] >= 10:  # Setup Factory 10 added one more byte here
                 script_data.seek(12, os.SEEK_CUR)
-            elif self.version[0] == 9 and self.version[1] >= 3:  # From version 9.3 script format slightly changed
+            elif self.version[0] == 9 and self.version[1] >= 2:  # From version 9.2 script format slightly changed
                 script_data.seek(11, os.SEEK_CUR)
             else:
                 script_data.seek(10, os.SEEK_CUR)
